@@ -2,7 +2,7 @@
 #'
 #' @param img_tbl a tibble containing columns image and image_comp
 #'
-#' @return a list with the distortion value as a double
+#' @return a list with the distortion value (dbl)
 #'
 get_img_dist_single <- function(img_tbl) {
   
@@ -15,9 +15,9 @@ get_img_dist_single <- function(img_tbl) {
 #' Get distortion values for cartesian product of images 
 #'
 #' @param image_source_path string indicating the location of images
-#' @param images optional - character vector of images to compare from image_source_path
+#' @param images optional - character vector of images to compare from image_source_path. default = NULL
 #'
-#' @return a tbl_df with columns id as chr, images as list and distortion as dbl
+#' @return a tbl_df with columns id (chr), images (list) and distortion (dbl)
 #'
 get_image_dist <- function(image_source_path, images = NULL) {
   
@@ -40,16 +40,21 @@ get_image_dist <- function(image_source_path, images = NULL) {
     image_df <- dplyr::filter(image_df, name %in% !!images)
   }
   
-  dist_df <- image_df %>% 
-    tidyr::crossing(name_comp = .$name) %>% 
-    dplyr::left_join(image_df, by = c("name_comp" = "name")) %>%
+  # get unique combination of image names
+  unq_nm_combn <- utils::combn(image_df$name, 2)
+  unq_nm_combn_tbl <- tibble::tibble("name" = unq_nm_combn[1, ],
+                                     "name_comp" = unq_nm_combn[2, ])
+  
+  dist_df <- unq_nm_combn_tbl %>% 
+    dplyr::left_join(image_df, by = "name") %>% 
+    dplyr::left_join(image_df, by = c("name_comp" = "name")) %>% 
     tidyr::unite("id", c("name", "name_comp"), sep = "_vs_") %>% 
     dplyr::select(id, image.x, image.y) %>%
     dplyr::rename(image = image.x,
                   image_comp = image.y) %>%
-    tidyr::nest(-id, .key = images) %>% 
+    tidyr::nest(-id, .key = image) %>% 
     dplyr::mutate(distortion = purrr::map(images, get_img_dist_single)) %>% 
-    tidyr::unnest(distortion)  
+    tidyr::unnest(distortion)
   
   dist_df
 }
